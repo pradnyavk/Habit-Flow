@@ -14,7 +14,7 @@ export default function HabitsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { habits, toggleHabitCompletion, isCompletedToday, getTodayKey, getTodayCompletionRate } = useHabits();
+  const { habits, toggleHabitCompletion, deleteHabit, isCompletedToday, getTodayKey, getTodayCompletionRate } = useHabits();
   const { addXP, unlockAchievement } = useUser();
   const [filter, setFilter] = useState("All");
 
@@ -74,6 +74,7 @@ export default function HabitsScreen() {
             isCompleted={isCompletedToday(habit)}
             onToggle={() => handleToggle(habit.id)}
             onPress={() => router.push({ pathname: "/habit/[id]", params: { id: habit.id } })}
+            onDelete={() => deleteHabit(habit.id)}
           />
         )}
         ListEmptyComponent={

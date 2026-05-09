@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -8,6 +8,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import Swipeable from "react-native-gesture-handler/Swipeable";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import type { Habit } from "@/context/HabitsContext";
@@ -17,13 +18,15 @@ interface HabitCardProps {
   isCompleted: boolean;
   onToggle: () => void;
   onPress?: () => void;
+  onDelete?: () => void;
   compact?: boolean;
 }
 
-export function HabitCard({ habit, isCompleted, onToggle, onPress, compact = false }: HabitCardProps) {
+export function HabitCard({ habit, isCompleted, onToggle, onPress, onDelete, compact = false }: HabitCardProps) {
   const colors = useColors();
   const scale = useSharedValue(1);
   const checkScale = useSharedValue(isCompleted ? 1 : 0);
+  const swipeableRef = useRef<Swipeable>(null);
 
   useEffect(() => {
     checkScale.value = withSpring(isCompleted ? 1 : 0, { damping: 12, stiffness: 200 });
@@ -38,7 +41,20 @@ export function HabitCard({ habit, isCompleted, onToggle, onPress, compact = fal
     onToggle();
   };
 
-  return (
+  const handleDelete = () => {
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    swipeableRef.current?.close();
+    onDelete?.();
+  };
+
+  const renderRightActions = () => (
+    <Pressable onPress={handleDelete} style={styles.deleteAction}>
+      <Feather name="trash-2" size={22} color="#FFFFFF" />
+      <Text style={styles.deleteText}>Delete</Text>
+    </Pressable>
+  );
+
+  const card = (
     <Animated.View style={[cardStyle, styles.wrapper]}>
       <Pressable
         onPress={onPress}
@@ -81,6 +97,20 @@ export function HabitCard({ habit, isCompleted, onToggle, onPress, compact = fal
       </Pressable>
     </Animated.View>
   );
+
+  if (!onDelete) return card;
+
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      rightThreshold={60}
+      overshootRight={false}
+      friction={2}
+    >
+      {card}
+    </Swipeable>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -112,5 +142,19 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
+  },
+  deleteAction: {
+    backgroundColor: "#EF4444",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 80,
+    borderRadius: 16,
+    marginBottom: 10,
+    gap: 4,
+  },
+  deleteText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
   },
 });
