@@ -22,7 +22,10 @@ export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
   const colors = useColors();
   const priority = PRIORITY_CONFIG[task.priority];
   const completedSubs = task.subtasks.filter((s) => s.completed).length;
-  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !task.completed;
+
+  const parsedDate = task.dueDate ? new Date(task.dueDate) : null;
+  const isValidDate = parsedDate !== null && !isNaN(parsedDate.getTime());
+  const isOverdue = isValidDate && parsedDate! < new Date() && !task.completed;
 
   const handleToggle = () => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -48,11 +51,11 @@ export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
             <Feather name={priority.icon} size={10} color={priority.color} />
             <Text style={[styles.priorityText, { color: priority.color }]}>{priority.label}</Text>
           </View>
-          {task.dueDate && (
+          {isValidDate && (
             <View style={styles.metaItem}>
               <Feather name="calendar" size={11} color={isOverdue ? "#EF4444" : colors.mutedForeground} />
               <Text style={[styles.metaText, { color: isOverdue ? "#EF4444" : colors.mutedForeground }]}>
-                {" "}{new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                {" "}{parsedDate!.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </Text>
             </View>
           )}

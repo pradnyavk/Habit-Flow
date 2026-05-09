@@ -16,12 +16,19 @@ export interface Habit {
   createdAt: string;
 }
 
+export interface ToggleResult {
+  nowCompleted: boolean;
+  isFirstEver: boolean;
+  allDoneToday: boolean;
+  anyWeekStreak: boolean;
+}
+
 interface HabitsContextType {
   habits: Habit[];
   addHabit: (habit: Omit<Habit, "id" | "streak" | "bestStreak" | "completions" | "createdAt">) => void;
   updateHabit: (id: string, updates: Partial<Habit>) => void;
   deleteHabit: (id: string) => void;
-  toggleHabitCompletion: (id: string, date: string) => void;
+  toggleHabitCompletion: (id: string, date: string) => ToggleResult;
   isCompletedToday: (habit: Habit) => boolean;
   getTodayKey: () => string;
   getCompletionRate: (habit: Habit, days?: number) => number;
@@ -30,6 +37,13 @@ interface HabitsContextType {
 
 const HabitsContext = createContext<HabitsContextType | null>(null);
 const STORAGE_KEY = "@habitflow_habits";
+
+export function toLocalDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 const SAMPLE_HABITS: Habit[] = [
   { id: "1", title: "Morning Meditation", icon: "sun", color: "#5B4CF5", frequency: "daily", targetDays: [0,1,2,3,4,5,6], streak: 7, bestStreak: 14, completions: {}, category: "Mindfulness", notes: "10 minutes of mindful breathing", createdAt: new Date().toISOString() },
@@ -43,21 +57,29 @@ export function HabitsProvider({ children }: { children: React.ReactNode }) {
   const [habits, setHabits] = useState<Habit[]>(SAMPLE_HABITS);
 
   const getTodayKey = useCallback(() => {
-    return new Date().toISOString().split("T")[0];
+    return toLocalDateKey(new Date());
   }, []);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((data) => {
       if (data) {
-        const parsed = JSON.parse(data) as Habit[];
-        if (parsed.length > 0) setHabits(parsed);
+        try {
+          const parsed = JSON.parse(data) as Habit[];
+          if (Array.isArray(parsed) && parsed.length > 0) setHabits(parsed);
+        } catch {
+          // corrupted storage data — keep defaults
+        }
       }
+    }).catch(() => {
+      // storage read failed — keep defaults
     });
   }, []);
 
   const save = (updated: Habit[]) => {
     setHabits(updated);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)).catch(() => {
+      // storage write failed — in-memory state still updated
+    });
   };
 
   const addHabit = (habit: Omit<Habit, "id" | "streak" | "bestStreak" | "completions" | "createdAt">) => {
@@ -73,30 +95,50 @@ export function HabitsProvider({ children }: { children: React.ReactNode }) {
     save(habits.filter((h) => h.id !== id));
   };
 
-  const toggleHabitCompletion = (id: string, date: string) => {
-    const updated = habits.map((h) => {
-      if (h.id !== id) return h;
-      const completions = { ...h.completions };
-      const wasCompleted = completions[date];
-      completions[date] = !wasCompleted;
-      const newStreak = calculateStreak(completions);
-      const bestStreak = Math.max(h.bestStreak, newStreak);
-      return { ...h, completions, streak: newStreak, bestStreak };
-    });
-    save(updated);
-  };
-
   const calculateStreak = (completions: Record<string, boolean>): number => {
     let streak = 0;
     const today = new Date();
-    for (let i = 0; i < 365; i++) {
+    const todayKey = toLocalDateKey(today);
+    // If today hasn't been completed yet, allow an existing streak from yesterday to survive
+    const startOffset = completions[todayKey] ? 0 : 1;
+    for (let i = startOffset; i < 365; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const key = d.toISOString().split("T")[0];
+      const key = toLocalDateKey(d);
       if (completions[key]) streak++;
       else break;
     }
     return streak;
+  };
+
+  const toggleHabitCompletion = (id: string, date: string): ToggleResult => {
+    let nowCompleted = false;
+    let anyWeekStreak = false;
+
+    const updated = habits.map((h) => {
+      if (h.id !== id) return h;
+      const completions = { ...h.completions };
+      completions[date] = !completions[date];
+      nowCompleted = completions[date];
+      const newStreak = calculateStreak(completions);
+      if (newStreak >= 7) anyWeekStreak = true;
+      const bestStreak = Math.max(h.bestStreak, newStreak);
+      return { ...h, completions, streak: newStreak, bestStreak };
+    });
+
+    const todayKey = toLocalDateKey(new Date());
+    const todayDay = new Date().getDay();
+    const todayHabits = updated.filter((h) => h.frequency === "daily" || h.targetDays.includes(todayDay));
+    const allDoneToday = todayHabits.length > 0 && todayHabits.every((h) => !!h.completions[todayKey]);
+
+    const totalCompletions = updated.reduce(
+      (sum, h) => sum + Object.values(h.completions).filter(Boolean).length,
+      0
+    );
+    const isFirstEver = nowCompleted && totalCompletions === 1;
+
+    save(updated);
+    return { nowCompleted, isFirstEver, allDoneToday, anyWeekStreak };
   };
 
   const isCompletedToday = (habit: Habit) => {
@@ -113,7 +155,7 @@ export function HabitsProvider({ children }: { children: React.ReactNode }) {
       const dayOfWeek = d.getDay();
       if (habit.targetDays.includes(dayOfWeek) || habit.frequency === "daily") {
         total++;
-        const key = d.toISOString().split("T")[0];
+        const key = toLocalDateKey(d);
         if (habit.completions[key]) completed++;
       }
     }

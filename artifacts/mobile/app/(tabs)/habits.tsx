@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useHabits } from "@/context/HabitsContext";
+import { useUser } from "@/context/UserContext";
 import { HabitCard } from "@/components/HabitCard";
 
 const CATEGORIES = ["All", "Health", "Mindfulness", "Learning", "Productivity", "Fitness"];
@@ -14,12 +15,23 @@ export default function HabitsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { habits, toggleHabitCompletion, isCompletedToday, getTodayKey, getTodayCompletionRate } = useHabits();
+  const { addXP, unlockAchievement } = useUser();
   const [filter, setFilter] = useState("All");
 
   const todayKey = getTodayKey();
   const filtered = filter === "All" ? habits : habits.filter((h) => h.category === filter);
   const completionRate = getTodayCompletionRate();
   const completedCount = habits.filter((h) => isCompletedToday(h)).length;
+
+  const handleToggle = (habitId: string) => {
+    const result = toggleHabitCompletion(habitId, todayKey);
+    if (result.nowCompleted) {
+      addXP(10);
+      if (result.isFirstEver) unlockAchievement("first_habit");
+      if (result.allDoneToday) unlockAchievement("perfect_day");
+      if (result.anyWeekStreak) unlockAchievement("week_streak");
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -60,7 +72,7 @@ export default function HabitsScreen() {
           <HabitCard
             habit={habit}
             isCompleted={isCompletedToday(habit)}
-            onToggle={() => toggleHabitCompletion(habit.id, todayKey)}
+            onToggle={() => handleToggle(habit.id)}
             onPress={() => router.push({ pathname: "/habit/[id]", params: { id: habit.id } })}
           />
         )}

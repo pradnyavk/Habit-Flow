@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
@@ -14,6 +14,12 @@ const PRIORITY_OPTIONS: { label: string; value: Priority; color: string }[] = [
 
 const TAGS = ["Work", "Personal", "Health", "Finance", "Learning", "Creative"];
 
+function isValidDateString(str: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
+  const d = new Date(str);
+  return !isNaN(d.getTime());
+}
+
 export default function AddTask() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -26,6 +32,7 @@ export default function AddTask() {
   const [tag, setTag] = useState("Personal");
   const [subtaskText, setSubtaskText] = useState("");
   const [subtasks, setSubtasks] = useState<{ id: string; title: string; completed: boolean }[]>([]);
+  const [dateError, setDateError] = useState(false);
 
   const addSubtask = () => {
     if (!subtaskText.trim()) return;
@@ -35,8 +42,18 @@ export default function AddTask() {
 
   const removeSubtask = (id: string) => setSubtasks((prev) => prev.filter((s) => s.id !== id));
 
+  const handleDateChange = (text: string) => {
+    setDueDate(text);
+    setDateError(false);
+  };
+
   const handleSave = () => {
     if (!title.trim()) return;
+    if (dueDate && !isValidDateString(dueDate)) {
+      setDateError(true);
+      Alert.alert("Invalid Date", "Please enter a date in YYYY-MM-DD format, e.g. 2025-12-31.");
+      return;
+    }
     addTask({ title: title.trim(), priority, dueDate: dueDate || undefined, subtasks, tags: [tag] });
     router.back();
   };
@@ -82,15 +99,18 @@ export default function AddTask() {
           ))}
         </ScrollView>
 
-        <Text style={[styles.label, { color: colors.mutedForeground }]}>DUE DATE (YYYY-MM-DD)</Text>
+        <Text style={[styles.label, { color: dateError ? "#EF4444" : colors.mutedForeground }]}>DUE DATE (YYYY-MM-DD)</Text>
         <TextInput
-          style={[styles.dateInput, { color: colors.foreground, backgroundColor: colors.muted, borderColor: colors.border }]}
+          style={[styles.dateInput, { color: colors.foreground, backgroundColor: colors.muted, borderColor: dateError ? "#EF4444" : colors.border }]}
           placeholder="2025-12-31"
           placeholderTextColor={colors.mutedForeground}
           value={dueDate}
-          onChangeText={setDueDate}
+          onChangeText={handleDateChange}
           keyboardType="numeric"
         />
+        {dateError && (
+          <Text style={styles.dateErrorText}>Use the format YYYY-MM-DD (e.g. 2025-12-31)</Text>
+        )}
 
         <Text style={[styles.label, { color: colors.mutedForeground }]}>SUBTASKS</Text>
         <View style={[styles.subtaskInput, { backgroundColor: colors.muted }]}>
@@ -135,6 +155,7 @@ const styles = StyleSheet.create({
   tagBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, marginRight: 8 },
   tagText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   dateInput: { borderRadius: 12, borderWidth: 1, padding: 14, fontFamily: "Inter_400Regular", fontSize: 15 },
+  dateErrorText: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#EF4444", marginTop: 4 },
   subtaskInput: { flexDirection: "row", alignItems: "center", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, gap: 10 },
   subtaskTextInput: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
   subtaskItem: { flexDirection: "row", alignItems: "center", borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, gap: 10, marginTop: 6 },

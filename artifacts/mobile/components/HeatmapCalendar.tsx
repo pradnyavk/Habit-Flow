@@ -7,6 +7,13 @@ interface HeatmapCalendarProps {
   weeks?: number;
 }
 
+function toLocalDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function getHeatmapData(completions: Record<string, boolean>, weeks: number) {
   const data: { date: Date; level: number }[][] = [];
   const today = new Date();
@@ -20,7 +27,7 @@ function getHeatmapData(completions: Record<string, boolean>, weeks: number) {
     for (let d = 0; d < 7; d++) {
       const date = new Date(startDate);
       date.setDate(startDate.getDate() + w * 7 + d);
-      const key = date.toISOString().split("T")[0];
+      const key = toLocalDateKey(date);
       const isFuture = date > today;
       week.push({ date, level: isFuture ? -1 : completions[key] ? 1 : 0 });
     }

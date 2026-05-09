@@ -28,7 +28,7 @@ export default function HomeScreen() {
   const { habits, toggleHabitCompletion, isCompletedToday, getTodayKey, getTodayCompletionRate } = useHabits();
   const { pendingCount } = useTasks();
   const { todayFocusMinutes } = useFocus();
-  const { user } = useUser();
+  const { user, addXP, unlockAchievement } = useUser();
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   const todayKey = getTodayKey();
@@ -41,6 +41,16 @@ export default function HomeScreen() {
 
   const topInset = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const bottomPadding = Platform.OS === "web" ? insets.bottom + 34 + 84 : insets.bottom + 90;
+
+  const handleToggle = (habitId: string) => {
+    const result = toggleHabitCompletion(habitId, todayKey);
+    if (result.nowCompleted) {
+      addXP(10);
+      if (result.isFirstEver) unlockAchievement("first_habit");
+      if (result.allDoneToday) unlockAchievement("perfect_day");
+      if (result.anyWeekStreak) unlockAchievement("week_streak");
+    }
+  };
 
   return (
     <ScrollView
@@ -114,7 +124,7 @@ export default function HomeScreen() {
             key={habit.id}
             habit={habit}
             isCompleted={isCompletedToday(habit)}
-            onToggle={() => toggleHabitCompletion(habit.id, todayKey)}
+            onToggle={() => handleToggle(habit.id)}
             onPress={() => router.push({ pathname: "/habit/[id]", params: { id: habit.id } })}
           />
         ))}

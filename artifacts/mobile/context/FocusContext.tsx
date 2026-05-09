@@ -64,7 +64,16 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(SESSIONS_KEY).then((data) => {
-      if (data) setSessions(JSON.parse(data));
+      if (data) {
+        try {
+          const parsed = JSON.parse(data) as FocusSession[];
+          if (Array.isArray(parsed)) setSessions(parsed);
+        } catch {
+          // corrupted storage data — start with empty sessions
+        }
+      }
+    }).catch(() => {
+      // storage read failed — start with empty sessions
     });
   }, []);
 
@@ -95,7 +104,9 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     };
     const updated = [newSession, ...sessions];
     setSessions(updated);
-    AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(updated));
+    AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(updated)).catch(() => {
+      // storage write failed — in-memory state still updated
+    });
 
     if (sessionType === "focus") {
       const newCount = completedSessions + 1;
@@ -141,9 +152,16 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     setIsPaused(false);
   };
 
+  // Compare session dates in local time to avoid UTC day-boundary mismatches
   const todayFocusMinutes = sessions.filter((s) => {
-    const today = new Date().toISOString().split("T")[0];
-    return s.completedAt.startsWith(today) && s.type === "focus";
+    const sessionDate = new Date(s.completedAt);
+    const now = new Date();
+    return (
+      s.type === "focus" &&
+      sessionDate.getFullYear() === now.getFullYear() &&
+      sessionDate.getMonth() === now.getMonth() &&
+      sessionDate.getDate() === now.getDate()
+    );
   }).reduce((acc, s) => acc + s.duration / 60, 0);
 
   return (

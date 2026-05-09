@@ -6,6 +6,7 @@ import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useUser } from "@/context/UserContext";
 import { useFocus } from "@/context/FocusContext";
+import { useHabits } from "@/context/HabitsContext";
 import { LinearGradient } from "expo-linear-gradient";
 
 const XP_PER_LEVEL = 500;
@@ -16,12 +17,14 @@ export default function Settings() {
   const router = useRouter();
   const { user, updateName } = useUser();
   const { settings, updateSettings } = useFocus();
+  const { habits } = useHabits();
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(user.name);
 
   const xpProgress = (user.xp % XP_PER_LEVEL) / XP_PER_LEVEL;
   const xpToNext = XP_PER_LEVEL - (user.xp % XP_PER_LEVEL);
   const unlockedCount = user.achievements.filter((a) => a.unlockedAt).length;
+  const maxStreak = habits.reduce((max, h) => Math.max(max, h.streak), 0);
 
   const saveName = () => {
     updateName(name.trim() || user.name);
@@ -62,9 +65,9 @@ export default function Settings() {
 
         <View style={styles.statsRow}>
           {[
-            { label: "Habits", value: "5", icon: "check-circle" },
+            { label: "Habits", value: String(habits.length), icon: "check-circle" },
             { label: "Achievements", value: `${unlockedCount}/${user.achievements.length}`, icon: "award" },
-            { label: "Day Streak", value: "7", icon: "zap" },
+            { label: "Best Streak", value: String(maxStreak), icon: "zap" },
           ].map((stat) => (
             <View key={stat.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name={stat.icon as any} size={18} color={colors.primary} />

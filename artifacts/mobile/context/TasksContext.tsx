@@ -48,15 +48,23 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((data) => {
       if (data) {
-        const parsed = JSON.parse(data) as Task[];
-        if (parsed.length > 0) setTasks(parsed);
+        try {
+          const parsed = JSON.parse(data) as Task[];
+          if (Array.isArray(parsed) && parsed.length > 0) setTasks(parsed);
+        } catch {
+          // corrupted storage data — keep defaults
+        }
       }
+    }).catch(() => {
+      // storage read failed — keep defaults
     });
   }, []);
 
   const save = (updated: Task[]) => {
     setTasks(updated);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)).catch(() => {
+      // storage write failed — in-memory state still updated
+    });
   };
 
   const addTask = (task: Omit<Task, "id" | "createdAt" | "completed">) => {

@@ -59,15 +59,23 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((data) => {
       if (data) {
-        const parsed = JSON.parse(data) as UserProfile;
-        setUser({ ...DEFAULT_USER, ...parsed, achievements: parsed.achievements?.length ? parsed.achievements : ACHIEVEMENTS });
+        try {
+          const parsed = JSON.parse(data) as UserProfile;
+          setUser({ ...DEFAULT_USER, ...parsed, achievements: parsed.achievements?.length ? parsed.achievements : ACHIEVEMENTS });
+        } catch {
+          // corrupted storage data — keep defaults
+        }
       }
+    }).catch(() => {
+      // storage read failed — keep defaults
     });
   }, []);
 
   const save = (updated: UserProfile) => {
     setUser(updated);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)).catch(() => {
+      // storage write failed — in-memory state still updated
+    });
   };
 
   const updateName = (name: string) => save({ ...user, name });
@@ -83,10 +91,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   const unlockAchievement = (id: string) => {
-    const updated = { ...user, achievements: user.achievements.map((a) => a.id === id && !a.unlockedAt ? { ...a, unlockedAt: new Date().toISOString() } : a) };
+    const already = user.achievements.find((a) => a.id === id && a.unlockedAt);
+    if (already) return;
     const achievement = ACHIEVEMENTS.find((a) => a.id === id);
-    if (achievement) updated.xp = user.xp + achievement.xpReward;
-    save(updated);
+    const updatedAchievements = user.achievements.map((a) =>
+      a.id === id && !a.unlockedAt ? { ...a, unlockedAt: new Date().toISOString() } : a
+    );
+    const newXP = user.xp + (achievement?.xpReward ?? 0);
+    const newLevel = Math.floor(newXP / XP_PER_LEVEL) + 1;
+    save({ ...user, achievements: updatedAchievements, xp: newXP, level: newLevel });
   };
 
   return (
